@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Cpu, Sparkles, Trophy, Award, GraduationCap, 
   ShieldCheck, BadgeCheck, Presentation, Phone, 
   MapPin, Mail, Send, Menu, X, ArrowUp, ArrowRight, 
-  Download, ExternalLink, Wifi, Lightbulb, 
-  FolderGit2, Users, Scroll, Eye, Wrench 
+  Download, ExternalLink, Lightbulb, 
+  Users, Scroll, Eye, Wrench, Radio, Zap, Activity,
+  Briefcase, Layers
 } from 'lucide-react';
 
 // Custom SVG components for Brand Icons
@@ -52,6 +53,8 @@ import scan4serveImg from './assets/scan4serve.png';
 import skyneticImg from './assets/skynetic.png';
 import autosmpsImg from './assets/autosmps.png';
 import retroImg from './assets/retro.png';
+import strixImg from './assets/robot.png';
+import gridsenseImg from './assets/iot.png';
 
 // Certificate image imports
 import certTechmaghiEv from './assets/cert_techmaghi_ev.jpg';
@@ -85,11 +88,18 @@ import certPalsInnowah from './assets/cert_pals_innowah.jpg';
 import certAstraBootcampCoordinator from './assets/cert_astra_bootcamp_coordinator.jpg';
 import certIedcContentCreation from './assets/cert_iedc_content_creation.jpg';
 
+const WORDS = [
+  "Embedded Systems & Firmware", 
+  "Robotics & Teleoperation", 
+  "IoT & Intelligent Hardware", 
+  "IPR Lead & Coordinator", 
+  "TinkerHub Campus Co-Lead"
+];
+
 function App() {
   const [activeSection, setActiveSection] = useState('hero');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
-  const [skillsVisible, setSkillsVisible] = useState(false);
 
   // Lightbox Modal State
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -108,7 +118,6 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Typewriter effect state
-  const words = ["ECE Student", "Embedded Systems Enthusiast", "IIC Student Lead", "IPR Lead & Coordinator", "TinkerHub Co-Lead"];
   const [displayText, setDisplayText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [loopNum, setLoopNum] = useState(0);
@@ -118,8 +127,8 @@ function App() {
   useEffect(() => {
     let timer;
     const handleTyping = () => {
-      const i = loopNum % words.length;
-      const fullWord = words[i];
+      const i = loopNum % WORDS.length;
+      const fullWord = WORDS[i];
       
       if (isDeleting) {
         setDisplayText(fullWord.substring(0, displayText.length - 1));
@@ -146,69 +155,73 @@ function App() {
     return () => clearTimeout(timer);
   }, [displayText, isDeleting, loopNum, typingSpeed]);
 
-  // Scroll Event Listeners (Active section & Scroll progress)
+  // 1. Scroll Progress (RAF-throttled, passive listener, zero layout thrashing)
   useEffect(() => {
+    let rafId = null;
+    const bar = document.getElementById('scrollProgress');
+
     const handleScroll = () => {
-      // 1. Scroll progress
-      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
-      const progress = (window.scrollY / totalHeight) * 100;
-      const bar = document.getElementById('scrollProgress');
-      if (bar) bar.style.width = `${progress}%`;
-
-      // 2. Active section check
-      const isAtBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 100;
-      if (isAtBottom) {
-        setActiveSection('contact');
-        return;
-      }
-
-      const sections = document.querySelectorAll('section');
-      const scrollPos = window.scrollY + 200; // Offset for header
-      
-      sections.forEach(section => {
-        const top = section.offsetTop;
-        const height = section.offsetHeight;
-        const id = section.getAttribute('id');
-        
-        if (scrollPos >= top && scrollPos < top + height) {
-          setActiveSection(id);
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        const docEl = document.documentElement;
+        const totalHeight = docEl.scrollHeight - window.innerHeight;
+        if (totalHeight > 0 && bar) {
+          const progress = (window.scrollY / totalHeight) * 100;
+          bar.style.width = `${progress}%`;
         }
+        rafId = null;
       });
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
   }, []);
 
-  // Intersection Observer for scroll-reveal animations
+  // 2. Active Section Detection via IntersectionObserver (Zero scroll listener recalculations)
+  useEffect(() => {
+    const sections = document.querySelectorAll('section[id]');
+    if (!sections.length) return;
+
+    const sectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.getAttribute('id');
+            if (id) {
+              setActiveSection((prev) => (prev === id ? prev : id));
+            }
+          }
+        });
+      },
+      {
+        rootMargin: '-20% 0px -65% 0px',
+        threshold: 0,
+      }
+    );
+
+    sections.forEach((sec) => sectionObserver.observe(sec));
+    return () => sectionObserver.disconnect();
+  }, []);
+
+  // 3. Intersection Observer for scroll-reveal animations (unobserves once visible)
   useEffect(() => {
     const revealElements = document.querySelectorAll('.scroll-reveal, .timeline-item');
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
           entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.1 });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
     
     revealElements.forEach(el => observer.observe(el));
-    
-    // Skills section specific observer for progress bars
-    const skillsSection = document.getElementById('skills');
-    let skillsObserver;
-    if (skillsSection) {
-      skillsObserver = new IntersectionObserver(([entry]) => {
-        if (entry.isIntersecting) {
-          setSkillsVisible(true);
-          skillsObserver.disconnect();
-        }
-      }, { threshold: 0.1 });
-      skillsObserver.observe(skillsSection);
-    }
 
     return () => {
       observer.disconnect();
-      if (skillsObserver) skillsObserver.disconnect();
     };
   }, []);
 
@@ -329,41 +342,72 @@ function App() {
           <div className="hero-content reveal-left">
             <div className="status-badge">
               <span className="pulse-dot"></span>
-              <span>Open for Embedded & Core ECE Roles</span>
+              <span>Available for Embedded & Robotics Roles</span>
             </div>
+            
             <h1 className="hero-title">
               Hi, I'm <span className="highlight-cyan">Shreyas K P</span>
             </h1>
-            <h2 className="hero-subtitle">
+            
+            <h2 className="hero-headline">
+              Electronics Engineer <span className="headline-divider">|</span> Embedded Systems & Robotics
+            </h2>
+
+            <div className="hero-typewriter-bar">
+              <span className="typewriter-label">Specialization:</span>
               <span className="typewriter-text">{displayText}</span>
               <span className="cursor">|</span>
-            </h2>
+            </div>
+            
             <p className="hero-description">
-              An ambitious Electronics and Communication Engineering student passionate about embedded systems. Combining a strong foundation in hardware engineering with expertise in visual storytelling, prompt engineering, and leadership.
+              I'm an Electronics and Communication Engineering student passionate about embedded systems, robotics, IoT, and intelligent hardware. I build practical projects that connect electronics, firmware, and software.
             </p>
+
             <div className="hero-cta">
-              <button onClick={() => handleNavLinkClick('projects')} className="btn btn-primary">
+              <button onClick={() => handleNavLinkClick('projects')} className="btn btn-primary" aria-label="View Projects">
                 <span>View Projects</span>
                 <ArrowRight size={16} />
               </button>
-              <button onClick={() => handleNavLinkClick('contact')} className="btn btn-secondary">
+              <button onClick={() => handleNavLinkClick('contact')} className="btn btn-secondary" aria-label="Contact Me">
                 <span>Contact Me</span>
                 <Mail size={16} />
               </button>
+              <a href="/shreyas_Resume.pdf" download="Shreyas_Resume.pdf" className="btn btn-outline" aria-label="Download Resume">
+                <Download size={16} />
+                <span>Download Resume</span>
+              </a>
+            </div>
+
+            <div className="hero-tech-strip">
+              <span className="tech-strip-label">Core Focus:</span>
+              <div className="tech-strip-tags">
+                <span>ESP32 & ARM Cortex</span>
+                <span>Embedded C/C++</span>
+                <span>Robotics & Telemetry</span>
+                <span>Power Systems</span>
+                <span>MQTT & IoT SCADA</span>
+              </div>
             </div>
           </div>
           
           <div className="hero-image-container reveal-right">
-            <div className="avatar-wrapper">
-              <div className="glowing-border"></div>
-              <img src={avatarImg} alt="Shreyas K P Profile Photo" className="avatar-img" />
+            <div className="avatar-frame">
+              <div className="avatar-tech-ring"></div>
+              <img 
+                src={avatarImg} 
+                alt="Shreyas K P — Electronics & Embedded Systems Engineer" 
+                className="avatar-img"
+                loading="eager"
+                width="390"
+                height="390"
+              />
               <div className="floating-badge badge-1">
-                <Cpu size={16} />
-                <span>Embedded</span>
+                <Cpu size={15} />
+                <span>Embedded & Firmware</span>
               </div>
               <div className="floating-badge badge-2">
-                <Lightbulb size={16} />
-                <span>IPR Lead</span>
+                <Radio size={15} />
+                <span>IoT & Robotics</span>
               </div>
             </div>
           </div>
@@ -450,204 +494,113 @@ function App() {
       <section id="skills" className="skills-section scroll-reveal">
         <div className="section-container">
           <div className="section-header">
-            <h2 className="section-title"><span className="number">02.</span> Skills & Tools</h2>
+            <h2 className="section-title"><span className="number">02.</span> Technical Skills & Domains</h2>
             <div className="header-line"></div>
           </div>
 
-          <div className="skills-grid">
-            {/* Professional Skills */}
-            <div className="skills-column">
-              <h3 className="skills-column-title">
-                <Sparkles size={20} className="title-icon cyan" />
-                <span>Professional Skills</span>
-              </h3>
-              <div className="skills-list">
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Prompt Engineering</span>
-                    <span className="skill-percentage">95%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill cyan" 
-                      style={{ width: skillsVisible ? '95%' : '0%' }}
-                    ></div>
-                  </div>
+          <div className="skills-grid-engineering">
+            {/* 1. Embedded Systems & Microcontrollers */}
+            <div className="skill-cat-card">
+              <div className="skill-cat-header">
+                <div className="skill-cat-icon-box cyan">
+                  <Cpu size={22} />
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Visual Storytelling</span>
-                    <span className="skill-percentage">88%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill cyan" 
-                      style={{ width: skillsVisible ? '88%' : '0%' }}
-                    ></div>
-                  </div>
+                <div>
+                  <h3 className="skill-cat-title">Embedded Systems & MCUs</h3>
+                  <p className="skill-cat-sub">Low-level architecture & hardware interfacing</p>
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Leadership & Coordination</span>
-                    <span className="skill-percentage">92%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill cyan" 
-                      style={{ width: skillsVisible ? '92%' : '0%' }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Research & Critical Thinking</span>
-                    <span className="skill-percentage">90%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill cyan" 
-                      style={{ width: skillsVisible ? '90%' : '0%' }}
-                    ></div>
-                  </div>
-                </div>
+              </div>
+              <div className="skill-pills-list">
+                <span className="skill-pill">ESP32 & ESP32-S3</span>
+                <span className="skill-pill">Arduino (Uno, Mega)</span>
+                <span className="skill-pill">ARM Cortex Architecture</span>
+                <span className="skill-pill">UART / I2C / SPI</span>
+                <span className="skill-pill">PWM & ADC Interfacing</span>
+                <span className="skill-pill">SMPS Failover Systems</span>
               </div>
             </div>
 
-            {/* Technical Skills */}
-            <div className="skills-column">
-              <h3 className="skills-column-title">
-                <Cpu size={20} className="title-icon purple" />
-                <span>Technical & ECE</span>
-              </h3>
-              <div className="skills-list">
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Embedded Systems (Arduino, ESP32)</span>
-                    <span className="skill-percentage">85%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill purple" 
-                      style={{ width: skillsVisible ? '85%' : '0%' }}
-                    ></div>
-                  </div>
+            {/* 2. Programming & Firmware */}
+            <div className="skill-cat-card">
+              <div className="skill-cat-header">
+                <div className="skill-cat-icon-box blue">
+                  <Layers size={22} />
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Biometric Operations & Verification</span>
-                    <span className="skill-percentage">90%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill purple" 
-                      style={{ width: skillsVisible ? '90%' : '0%' }}
-                    ></div>
-                  </div>
+                <div>
+                  <h3 className="skill-cat-title">Programming & Firmware</h3>
+                  <p className="skill-cat-sub">Embedded algorithms & application logic</p>
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">C, Python & Scripting</span>
-                    <span className="skill-percentage">80%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill purple" 
-                      style={{ width: skillsVisible ? '80%' : '0%' }}
-                    ></div>
-                  </div>
-                </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Cybersecurity & Product Mgmt</span>
-                    <span className="skill-percentage">75%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill purple" 
-                      style={{ width: skillsVisible ? '75%' : '0%' }}
-                    ></div>
-                  </div>
-                </div>
+              </div>
+              <div className="skill-pills-list">
+                <span className="skill-pill">Embedded C</span>
+                <span className="skill-pill">C++ (OOP & Firmware)</span>
+                <span className="skill-pill">Python (Data & Automation)</span>
+                <span className="skill-pill">Keil uVision IDE</span>
+                <span className="skill-pill">Arduino IDE / PlatformIO</span>
+                <span className="skill-pill">Git & GitHub</span>
               </div>
             </div>
 
-            {/* Tools & Technologies */}
-            <div className="skills-column">
-              <h3 className="skills-column-title">
-                <Wrench size={20} className="title-icon pink" />
-                <span>Tools & Tech</span>
-              </h3>
-              <div className="skills-list">
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">VS Code & Arduino IDE</span>
-                    <span className="skill-percentage">92%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill pink" 
-                      style={{ width: skillsVisible ? '92%' : '0%' }}
-                    ></div>
-                  </div>
+            {/* 3. Robotics & IoT */}
+            <div className="skill-cat-card">
+              <div className="skill-cat-header">
+                <div className="skill-cat-icon-box purple">
+                  <Radio size={22} />
                 </div>
+                <div>
+                  <h3 className="skill-cat-title">Robotics & IoT</h3>
+                  <p className="skill-cat-sub">Teleoperation, RF links & telemetry</p>
+                </div>
+              </div>
+              <div className="skill-pills-list">
+                <span className="skill-pill">Rover Teleoperation</span>
+                <span className="skill-pill">Dual L298N Motor Drivers</span>
+                <span className="skill-pill">NRF24L01+ 2.4GHz Wireless</span>
+                <span className="skill-pill">ESP32-S3 MJPEG Video</span>
+                <span className="skill-pill">MQTT & WebSockets</span>
+                <span className="skill-pill">Ultrasonic & IR Sensor Arrays</span>
+              </div>
+            </div>
 
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Git & GitHub</span>
-                    <span className="skill-percentage">90%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill pink" 
-                      style={{ width: skillsVisible ? '90%' : '0%' }}
-                    ></div>
-                  </div>
+            {/* 4. Web & SCADA Development */}
+            <div className="skill-cat-card">
+              <div className="skill-cat-header">
+                <div className="skill-cat-icon-box cyan">
+                  <Activity size={22} />
                 </div>
+                <div>
+                  <h3 className="skill-cat-title">Web & SCADA Interfaces</h3>
+                  <p className="skill-cat-sub">Real-time hardware control dashboards</p>
+                </div>
+              </div>
+              <div className="skill-pills-list">
+                <span className="skill-pill">React.js & Next.js 15</span>
+                <span className="skill-pill">JavaScript (ES6+) & TypeScript</span>
+                <span className="skill-pill">Web Serial API Bridge</span>
+                <span className="skill-pill">Real-time Socket.io</span>
+                <span className="skill-pill">Modern Responsive CSS</span>
+                <span className="skill-pill">RESTful APIs & State Mgmt</span>
+              </div>
+            </div>
 
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Figma & Canva</span>
-                    <span className="skill-percentage">85%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill pink" 
-                      style={{ width: skillsVisible ? '85%' : '0%' }}
-                    ></div>
-                  </div>
+            {/* 5. Electronics & Hardware Design */}
+            <div className="skill-cat-card">
+              <div className="skill-cat-header">
+                <div className="skill-cat-icon-box pink">
+                  <Zap size={22} />
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">MATLAB & Proteus</span>
-                    <span className="skill-percentage">80%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill pink" 
-                      style={{ width: skillsVisible ? '80%' : '0%' }}
-                    ></div>
-                  </div>
+                <div>
+                  <h3 className="skill-cat-title">Electronics & Circuit Design</h3>
+                  <p className="skill-cat-sub">Analog/digital prototyping & isolation</p>
                 </div>
-
-                <div className="skill-item">
-                  <div className="skill-info">
-                    <span className="skill-name">Eagle & KiCad (PCB Design)</span>
-                    <span className="skill-percentage">75%</span>
-                  </div>
-                  <div className="skill-bar-bg">
-                    <div 
-                      className="skill-bar-fill pink" 
-                      style={{ width: skillsVisible ? '75%' : '0%' }}
-                    ></div>
-                  </div>
-                </div>
+              </div>
+              <div className="skill-pills-list">
+                <span className="skill-pill">Optocoupler Isolation</span>
+                <span className="skill-pill">Relay Logic & Safety Interlocks</span>
+                <span className="skill-pill">Voltage Sensing Arrays</span>
+                <span className="skill-pill">Breadboard Prototyping</span>
+                <span className="skill-pill">Proteus & Circuit Simulation</span>
+                <span className="skill-pill">Smart Phase Balancing (Prototype)</span>
               </div>
             </div>
           </div>
@@ -663,10 +616,98 @@ function App() {
           </div>
 
           <div className="projects-grid">
+            {/* Project 1: STRIX — Smart Rover Control & Surveillance System */}
+            <div className="project-card">
+              <div className="project-thumbnail-wrapper">
+                <img 
+                  src={strixImg} 
+                  alt="STRIX — Smart Rover Control & Surveillance System" 
+                  className="project-thumbnail"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div className="project-overlay">
+                  <a 
+                    href="https://github.com/Shreyas-k-p/STRIX" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="project-icon-link" 
+                    aria-label="View STRIX on GitHub"
+                  >
+                    <Github size={20} />
+                  </a>
+                </div>
+              </div>
+              <div className="project-info">
+                <span className="project-category">Robotics & Teleoperation</span>
+                <h3 className="project-card-title">STRIX — Smart Rover Control & Surveillance</h3>
+                <p className="project-card-desc">
+                  STRIX is an embedded robotics project that combines rover control, wireless communication, telemetry, and live camera streaming in a web-based control interface. Features a virtual joystick control interface, motor control with L298N motor driver integration, ESP32-S3 camera with live MJPEG video streaming, NRF24 wireless communication, multi-module UART communication, real-time sensor telemetry, 4-channel relay & servo control, and an emergency-stop safety system with event logging.
+                </p>
+                <div className="project-tags">
+                  <span>ESP32</span>
+                  <span>ESP32-S3</span>
+                  <span>React</span>
+                  <span>JavaScript</span>
+                  <span>Embedded Systems</span>
+                  <span>IoT</span>
+                  <span>Robotics</span>
+                  <span>Wireless Communication</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Project 2: GRIDSENSE AI — Smart Phase Balancing System */}
+            <div className="project-card">
+              <div className="project-thumbnail-wrapper">
+                <img 
+                  src={gridsenseImg} 
+                  alt="GRIDSENSE AI — Smart Phase Balancing System SCADA Dashboard" 
+                  className="project-thumbnail"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div className="project-overlay">
+                  <a 
+                    href="https://github.com/Shreyas-k-p/TriGrid-ai-smart-phase-balancing" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="project-icon-link" 
+                    aria-label="View GRIDSENSE AI on GitHub"
+                  >
+                    <Github size={20} />
+                  </a>
+                </div>
+              </div>
+              <div className="project-info">
+                <span className="project-category">IoT & Edge AI Energy SCADA (Prototype)</span>
+                <h3 className="project-card-title">GRIDSENSE AI — Smart Phase Balancing System</h3>
+                <p className="project-card-desc">
+                  An industrial SCADA IoT dashboard prototype designed to monitor an ESP32-based Edge AI smart phase balancing system. Connects via real-time MQTT WebSockets to evaluate phase voltage and current telemetry, compute health scores, and simulate automated relay switching to balance electrical phase distribution.
+                </p>
+                <div className="project-tags">
+                  <span>ESP32</span>
+                  <span>Edge AI</span>
+                  <span>MQTT</span>
+                  <span>WebSockets</span>
+                  <span>Next.js</span>
+                  <span>TypeScript</span>
+                  <span>SCADA</span>
+                  <span>IoT</span>
+                </div>
+              </div>
+            </div>
+
             {/* Project 1: Scan4Serve SaaS */}
             <div className="project-card">
               <div className="project-thumbnail-wrapper">
-                <img src={scan4serveImg} alt="Scan4Serve SaaS Platform project" className="project-thumbnail" />
+                <img 
+                  src={scan4serveImg} 
+                  alt="Scan4Serve SaaS Platform project" 
+                  className="project-thumbnail" 
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="project-overlay">
                   <a href="https://github.com/Shreyas-k-p/chathan" target="_blank" rel="noopener noreferrer" className="project-icon-link" aria-label="GitHub">
                     <Github size={20} />
@@ -696,7 +737,13 @@ function App() {
             {/* Project 2: Skynetic */}
             <div className="project-card">
               <div className="project-thumbnail-wrapper">
-                <img src={skyneticImg} alt="Skynetic Robotic Touch project" className="project-thumbnail" />
+                <img 
+                  src={skyneticImg} 
+                  alt="Skynetic Robotic Touch project" 
+                  className="project-thumbnail" 
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="project-overlay">
                   <a href="https://github.com/Shreyas-k-p/Skynetic" target="_blank" rel="noopener noreferrer" className="project-icon-link" aria-label="GitHub">
                     <Github size={20} />
@@ -725,7 +772,13 @@ function App() {
             {/* Project 3: Auto-SMPS Backup Switch */}
             <div className="project-card">
               <div className="project-thumbnail-wrapper">
-                <img src={autosmpsImg} alt="Auto-SMPS Failover Switch project" className="project-thumbnail" />
+                <img 
+                  src={autosmpsImg} 
+                  alt="Auto-SMPS Failover Switch project" 
+                  className="project-thumbnail" 
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="project-overlay">
                   <a href="https://github.com/Shreyas-k-p/Auto-SMPS" target="_blank" rel="noopener noreferrer" className="project-icon-link" aria-label="GitHub">
                     <Github size={20} />
@@ -751,7 +804,13 @@ function App() {
             {/* Project 4: Retro Reaction Arena */}
             <div className="project-card">
               <div className="project-thumbnail-wrapper">
-                <img src={retroImg} alt="Retro Reaction Arena project" className="project-thumbnail" />
+                <img 
+                  src={retroImg} 
+                  alt="Retro Reaction Arena project" 
+                  className="project-thumbnail" 
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div className="project-overlay">
                   <a href="https://github.com/Shreyas-k-p/RETRO--A-REACTIVE-AND-REACTANCES" target="_blank" rel="noopener noreferrer" className="project-icon-link" aria-label="GitHub">
                     <Github size={20} />
@@ -776,7 +835,7 @@ function App() {
         </div>
       </section>
 
-      {/* Experience / Internships & Leadership Section */}
+      {/* Experience & Leadership Section */}
       <section id="experience" className="experience-section scroll-reveal">
         <div className="section-container">
           <div className="section-header">
@@ -784,90 +843,159 @@ function App() {
             <div className="header-line"></div>
           </div>
 
-          <div className="timeline">
-            {/* Experience 1 */}
-            <div className="timeline-item left">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">2025 - Present</span>
-                <h3 className="timeline-role">IPR Lead & Coordinator</h3>
-                <h4 className="timeline-company">IEDC SNMIMT</h4>
-                <ul className="timeline-details">
-                  <li>Conducted online Intellectual Property Rights (IPR) workshops for startups and college innovators.</li>
-                  <li>Initiated, conducted, and coordinated <strong>"Axiom"</strong>, a comprehensive seminar series covering startup ideation, legal steps, IPR, BMC (Business Model Canvas), marketing, capital, and prototyping.</li>
-                  <li>Led a student committee in aligning activities with the Institution's Innovation Council (IIC 7.0) innovation calendar.</li>
-                </ul>
+          <div className="experience-grid">
+            {/* Role 1: TinkerHub Campus Co-Lead */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box cyan">
+                  <Briefcase size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge cyan">Developer Community</div>
+                  <h3 className="exp-role">Campus Co-Lead</h3>
+                  <h4 className="exp-org">TinkerHub SNMIMT</h4>
+                </div>
+                <span className="exp-date">2024 – 2025</span>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Spearheaded peer-to-peer technical learning tracks and hands-on coding bootcamps on campus.</li>
+                <li>Organized 24-hour makeathons and hackathons, encouraging student teams to prototype real hardware and software solutions.</li>
+                <li>Coordinated regional TinkerHub community challenges and open-source collaborative projects.</li>
+              </ul>
             </div>
 
-            {/* Experience 2 */}
-            <div className="timeline-item right">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">2025 - 2026</span>
-                <h3 className="timeline-role">KKEM Student Ambassador (AI/ML)</h3>
-                <h4 className="timeline-company">Kerala Knowledge Economy Mission</h4>
-                <ul className="timeline-details">
-                  <li>Served as the college student ambassador to promote AI/ML learning initiatives, workshops, and career pathways under KKEM.</li>
-                  <li>Bridged the gap between government digital employment initiatives and campus engineering students.</li>
-                </ul>
+            {/* Role 2: ENTRI App Campus Ambassador */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box blue">
+                  <GraduationCap size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge blue">EdTech Ambassador</div>
+                  <h3 className="exp-role">Campus Ambassador</h3>
+                  <h4 className="exp-org">ENTRI App</h4>
+                </div>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Represented ENTRI App on campus to promote regional language digital learning and career-readiness initiatives.</li>
+                <li>Bridged engineering students with specialized skill development programs, mock assessments, and tech upskilling courses.</li>
+                <li>Conducted peer outreach to expand awareness of competitive technical examinations and digital learning resources.</li>
+              </ul>
             </div>
 
-            {/* Experience 3 */}
-            <div className="timeline-item left">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">2024 - Present</span>
-                <h3 className="timeline-role">IIC Student Lead</h3>
-                <h4 className="timeline-company">Institution's Innovation Council (IIC) SNMIMT</h4>
-                <ul className="timeline-details">
-                  <li>Fostered a campus culture of design thinking, entrepreneurship, and innovation through curated seminars and hackathons.</li>
-                  <li>Guided student innovators in transitioning project concepts into viable business models and prototype validation.</li>
-                </ul>
+            {/* Role 3: E-Cell Student Ambassador (IIT Bombay NEC) */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box purple">
+                  <Trophy size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge purple">Entrepreneurship</div>
+                  <h3 className="exp-role">Student Ambassador</h3>
+                  <h4 className="exp-org">E-Cell, IIT Bombay (NEC Initiative)</h4>
+                </div>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Acted as student liaison for the National Entrepreneurship Challenge (NEC 2025 Advanced Track, Rank 108) organized by E-Cell, IIT Bombay.</li>
+                <li>Mobilized student innovator participation across 6-month-long structured entrepreneurship and startup development modules.</li>
+                <li>Promoted entrepreneurial mindset, pitch deck creation, and startup fundamentals among engineering undergraduates.</li>
+              </ul>
             </div>
 
-            {/* Experience 4 */}
-            <div className="timeline-item right">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">2024 - 2025</span>
-                <h3 className="timeline-role">Campus Co-Lead</h3>
-                <h4 className="timeline-company">TinkerHub SNMIMT</h4>
-                <ul className="timeline-details">
-                  <li>Fostered an active tech-learning culture, coordinating coding workshops and project-building sessions for peer groups.</li>
-                  <li>Collaborated on state-wide TinkerHub community challenges and technology learning tracks.</li>
-                </ul>
+            {/* Role 4: IPR Lead & Coordinator */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box cyan">
+                  <Lightbulb size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge cyan">IPR & Innovation</div>
+                  <h3 className="exp-role">IPR Lead & Coordinator</h3>
+                  <h4 className="exp-org">IEDC SNMIMT</h4>
+                </div>
+                <span className="exp-date">2025 – Present</span>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Conducted online Intellectual Property Rights (IPR) workshops for student innovators, researchers, and campus startups.</li>
+                <li>Initiated and coordinated <strong>"Axiom"</strong>, a comprehensive seminar series covering startup ideation, legal steps, IPR, Business Model Canvas (BMC), and hardware prototyping.</li>
+                <li>Aligned student committee activities with the Institution's Innovation Council (IIC 7.0) innovation calendar.</li>
+              </ul>
             </div>
 
-            {/* Experience 5 */}
-            <div className="timeline-item left">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">2024 - 2025</span>
-                <h3 className="timeline-role">Assistant CTO</h3>
-                <h4 className="timeline-company">IEDC SNMIMT</h4>
-                <ul className="timeline-details">
-                  <li>Served as Assistant Chief Technology Officer, managing the technical cell and overseeing student hardware/software prototype developments.</li>
-                  <li>Supported technical infrastructure setups for ideation camps, start-up bootcamps, and hackathons.</li>
-                </ul>
+            {/* Role 5: KSUM IPR & Research Lead */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box blue">
+                  <Award size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge blue">Govt Innovation</div>
+                  <h3 className="exp-role">IPR & Research Lead</h3>
+                  <h4 className="exp-org">Kerala Startup Mission (KSUM)</h4>
+                </div>
+                <span className="exp-date">2025 – 2026</span>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Officially recognized by Kerala Startup Mission (KSUM) for student committee leadership and research enablement.</li>
+                <li>Mentored campus teams on patent documentation, innovation disclosures, and prototype stage-gate validation.</li>
+              </ul>
             </div>
 
-            {/* Experience 6 */}
-            <div className="timeline-item right">
-              <div className="timeline-dot"></div>
-              <div className="timeline-content">
-                <span className="timeline-date">March 2025</span>
-                <h3 className="timeline-role">Student Coordinator</h3>
-                <h4 className="timeline-company">ASTRA Bootcamp SNMIMT</h4>
-                <ul className="timeline-details">
-                  <li>Assisted in event planning, logistics, and participant engagement during the 3-day boot camp.</li>
-                  <li>Worked closely with academic faculty and industry mentors to ensure smooth execution of workshops.</li>
-                </ul>
+            {/* Role 6: KKEM Student Ambassador */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box purple">
+                  <Sparkles size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge purple">AI/ML Ambassador</div>
+                  <h3 className="exp-role">Student Ambassador (AI/ML)</h3>
+                  <h4 className="exp-org">Kerala Knowledge Economy Mission (KKEM)</h4>
+                </div>
+                <span className="exp-date">2025 – 2026</span>
               </div>
+              <ul className="exp-bullet-list">
+                <li>Served as college ambassador to promote state digital employment programs, AI/ML workshops, and career pathways under KKEM.</li>
+                <li>Facilitated student onboarding into modern AI skill tracks and future-ready technology certifications.</li>
+              </ul>
+            </div>
+
+            {/* Role 7: Assistant CTO */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box cyan">
+                  <Wrench size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge cyan">Technical Cell</div>
+                  <h3 className="exp-role">Assistant CTO</h3>
+                  <h4 className="exp-org">IEDC SNMIMT</h4>
+                </div>
+                <span className="exp-date">2024 – 2025</span>
+              </div>
+              <ul className="exp-bullet-list">
+                <li>Managed the technical cell and oversaw hardware/software prototype development for college innovators.</li>
+                <li>Supported technical infrastructure, testing benches, and tool setups for ideation camps and hackathons.</li>
+              </ul>
+            </div>
+
+            {/* Role 8: Student Coordinator — ASTRA Bootcamp */}
+            <div className="exp-card">
+              <div className="exp-card-header">
+                <div className="exp-icon-box blue">
+                  <Presentation size={20} />
+                </div>
+                <div className="exp-title-meta">
+                  <div className="exp-badge blue">Event Coordination</div>
+                  <h3 className="exp-role">Student Coordinator</h3>
+                  <h4 className="exp-org">ASTRA Bootcamp SNMIMT</h4>
+                </div>
+                <span className="exp-date">March 2025</span>
+              </div>
+              <ul className="exp-bullet-list">
+                <li>Managed logistics, guest speaker coordination, and hands-on laboratory setups during the 3-day intensive boot camp.</li>
+                <li>Collaborated with faculty and industry mentors to ensure seamless workshop delivery for engineering delegates.</li>
+              </ul>
             </div>
           </div>
         </div>
